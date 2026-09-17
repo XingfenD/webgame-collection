@@ -81,8 +81,8 @@ export function countByDuration(games: GameSummary[]): Record<DurationBucket, nu
   return counts
 }
 
-export function countByTag(games: GameSummary[], limit = 16): Array<[string, number]> {
+export function countByTag(games: GameSummary[]): Array<[string, number]> {
   const counts = new Map<string, number>()
   for (const game of games) for (const tag of game.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
-  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit)
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 }

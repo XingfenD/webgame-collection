@@ -101,11 +101,11 @@ describe('countByType / countByDuration / countByTag', () => {
     expect(countByDuration(games)).toEqual({ short: 1, mid: 1, long: 1 })
   })
 
-  it('countByTag 按出现次数降序，默认取前 16', () => {
+  it('countByTag 按出现次数降序，返回全部标签', () => {
     const counts = countByTag(games)
     expect(counts[0]).toEqual(['数字', 2])
     expect(counts.map(([, n]) => n)).toEqual([2, 1, 1])
     const many = Array.from({ length: 20 }, (_, i) => game({ id: `g${i}`, tags: [`tag-${String(i).padStart(2, '0')}`] }))
-    expect(countByTag(many)).toHaveLength(16)
+    expect(countByTag(many)).toHaveLength(20)
   })
 })

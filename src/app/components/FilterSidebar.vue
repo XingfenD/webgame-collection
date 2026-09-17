@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import type { GameSummary, GameType } from '@/data/types'
 import { GAME_TYPES } from '@/data/types'
 import { GAME_TYPE_LABELS } from '@/lib/labels'
@@ -12,6 +12,66 @@ const { state, update } = useFilterState()
 const typeCounts = computed(() => countByType(props.games))
 const durationCounts = computed(() => countByDuration(props.games))
 const tagCounts = computed(() => countByTag(props.games))
+
+const INITIAL_TAG_COUNT = 6
+const visibleTags = computed(() =>
+  tagCounts.value.filter(([tag], index) => index < INITIAL_TAG_COUNT || state.value.tags.includes(tag))
+)
+const hiddenTags = computed(() => {
+  const shown = new Set(visibleTags.value.map(([tag]) => tag))
+  return tagCounts.value.filter(([tag]) => !shown.has(tag))
+})
+
+const morePanelId = useId()
+const moreButton = ref<HTMLButtonElement | null>(null)
+const morePanel = ref<HTMLDivElement | null>(null)
+const moreOpen = ref(false)
+
+function positionMorePanel(): void {
+  const button = moreButton.value
+  const panel = morePanel.value
+  if (!button || !panel) return
+  const gap = 4
+  const rect = button.getBoundingClientRect()
+  const panelRect = panel.getBoundingClientRect()
+  const openUp = window.innerHeight - rect.bottom - gap < panelRect.height && rect.top > window.innerHeight - rect.bottom
+  panel.style.left = `${Math.max(gap, Math.min(rect.left, window.innerWidth - panelRect.width - gap))}px`
+  panel.style.top = `${openUp ? rect.top - panelRect.height - gap : rect.bottom + gap}px`
+}
+
+function closeMore(): void {
+  const panel = morePanel.value
+  if (panel?.matches(':popover-open')) panel.hidePopover()
+}
+
+function toggleMore(): void {
+  const panel = morePanel.value
+  if (!panel) return
+  if (panel.matches(':popover-open')) panel.hidePopover()
+  else panel.showPopover()
+}
+
+function onMoreToggle(event: Event): void {
+  const open = (event as Event & { newState?: string }).newState === 'open'
+  moreOpen.value = open
+  if (open) {
+    positionMorePanel()
+    window.addEventListener('scroll', closeMore, true)
+    window.addEventListener('resize', closeMore)
+  } else {
+    window.removeEventListener('scroll', closeMore, true)
+    window.removeEventListener('resize', closeMore)
+  }
+}
+
+watch(hiddenTags, (tags) => {
+  if (!tags.length) closeMore()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', closeMore, true)
+  window.removeEventListener('resize', closeMore)
+})
 
 interface Row<K extends string> {
   key: K
@@ -120,7 +180,7 @@ function toggleTag(tag: string): void {
           </button>
         </li>
         <li
-          v-for="[tag, tagCount] in tagCounts"
+          v-for="[tag, tagCount] in visibleTags"
           :key="tag"
           class="border-b-[1.5px] border-dashed"
           :class="state.tags.includes(tag) ? 'border-transparent' : 'border-ink'"
@@ -137,6 +197,43 @@ function toggleTag(tag: string): void {
           </button>
         </li>
       </ul>
+      <button
+        v-if="hiddenTags.length"
+        ref="moreButton"
+        type="button"
+        class="mt-2 flex min-h-11 w-full items-center justify-center border-2 border-transparent px-2 text-[0.8125rem] font-bold text-accent-ink hover:bg-paper lg:min-h-9"
+        :aria-expanded="moreOpen"
+        :aria-controls="morePanelId"
+        @click="toggleMore"
+      >展开更多（{{ hiddenTags.length }}）</button>
+      <div
+        :id="morePanelId"
+        ref="morePanel"
+        popover="auto"
+        class="m-0 max-h-64 w-48 max-w-[calc(100vw-2rem)] overflow-y-auto border-2 border-ink bg-surface p-0 shadow-hard"
+        :class="moreOpen ? '' : 'invisible'"
+        @toggle="onMoreToggle"
+      >
+        <ul>
+          <li
+            v-for="[tag, tagCount] in hiddenTags"
+            :key="tag"
+            class="border-b-[1.5px] border-dashed last:border-b-0"
+            :class="state.tags.includes(tag) ? 'border-transparent' : 'border-ink'"
+          >
+            <button
+              type="button"
+              class="flex min-h-11 w-full items-center justify-between gap-2 border-2 px-2 text-left text-[0.8125rem] lg:min-h-9"
+              :class="state.tags.includes(tag) ? 'border-ink bg-highlight font-bold' : 'border-transparent hover:bg-paper'"
+              :aria-pressed="state.tags.includes(tag)"
+              @click="toggleTag(tag)"
+            >
+              <span class="truncate">{{ tag }}</span>
+              <span class="font-mono text-[0.6875rem]">{{ tagCount }}</span>
+            </button>
+          </li>
+        </ul>
+      </div>
     </section>
 
     <button
